@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:quartz="http://www.mulesoft.org/schema/mule/quartz" xmlns:https="http://www.mulesoft.org/schema/mule/https" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/current/mule-cxf.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/https http://www.mulesoft.org/schema/mule/https/current/mule-https.xsd
+http://www.mulesoft.org/schema/mule/quartz http://www.mulesoft.org/schema/mule/quartz/current/mule-quartz.xsd">
+    <cxf:configuration name="CXF_Configuration" enableMuleSoapHeaders="false" initializeStaticBusInstance="true" doc:name="CXF Configuration"/>
+    <flow name="mainFlow1" doc:name="mainFlow1">
+        <http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="8081" doc:name="HTTP"/>
+        <cxf:jaxws-service configuration-ref="CXF_Configuration" serviceClass="cc.notsoclever.mule.GitHubService" validationEnabled="true" doc:name="SOAP"/>
+        <logger level="INFO" doc:name="Logger"/>
+        <choice doc:name="Choice">
+            <when expression="#[cxf_operation.toString().endsWith('getProjectTags')]">
+                <set-payload value="repos/#[payload[0]]/#[payload[1]]/tags" doc:name="Tags"/>
+            </when>
+            <when expression="#[cxf_operation.toString().endsWith('getProjectBranches')]">
+                <set-payload value="repos/#[payload[0]]/#[payload[1]]/branches" doc:name="Branches"/>
+            </when>
+            <when expression="#[cxf_operation.toString().endsWith('getRepos')]">
+                <set-payload value="orgs/#[payload]/repos" doc:name="Repos"/>
+            </when>
+        </choice>
+        <response>
+            <object-to-string-transformer doc:name="Object to String"/>
+        </response>
+        <https:outbound-endpoint exchange-pattern="request-response" host="api.github.com" port="443" path="#[payload]" method="GET" doc:name="Call GitHub REST API"/>
+    </flow>
+    <flow name="mainFlow2" doc:name="mainFlow2">
+        <quartz:inbound-endpoint jobName="fireit" repeatInterval="0" repeatCount="0" startDelay="5" responseTimeout="10000" doc:name="Quartz">
+            <quartz:event-generator-job/>
+        </quartz:inbound-endpoint>
+        <set-variable variableName="fname" value="foo" doc:name="Variable"/>
+        <logger message="#[fname]" level="INFO" category="Fired" doc:name="Logger"/>
+        <flow-ref name="#[fname]flow" doc:name="Flow Reference"/>
+    </flow>
+    <flow name="fooflow" doc:name="fooflow">
+        <logger message="w0000t" level="INFO" doc:name="Logger"/>
+    </flow>
+</mule>
